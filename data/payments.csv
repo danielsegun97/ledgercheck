@@ -1,0 +1,6 @@
+firm_id,payment_id,version,amount_cents
+firm-a,p001,1,10000
+firm-a,p002,1,2500
+firm-a,p001,1,10000
+firm-b,p001,1,7000
+firm-b,p002,1,INVALID
