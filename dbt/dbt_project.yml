@@ -1,0 +1,9 @@
+name: ledgercheck
+version: '1.0.0'
+config-version: 2
+profile: ledgercheck
+model-paths: [models]
+test-paths: [tests]
+models:
+  ledgercheck:
+    +materialized: view

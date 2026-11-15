@@ -3,3 +3,8 @@ __pycache__/
 run/
 .env
 .venv/
+dbt/target/
+dbt/logs/
+*.duckdb
+*.duckdb.wal
+dbt/.user.yml

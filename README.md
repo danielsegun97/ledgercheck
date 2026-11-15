@@ -1,7 +1,7 @@
 # LedgerCheck
 A small, runnable financial-data reconciliation project built with Python and SQLite.
 
-**Status:** local learning prototype; nine tests pass. GitHub Actions configuration included for automated testing. No cloud deployment, dbt implementation, or production-use claim.
+**Status:** local learning prototype with Python ingestion and dbt reporting on DuckDB. No cloud deployment or production-use claim.
 
 All sample records are synthetic. No employer data or candidate documents belong in this repository.
 
@@ -36,6 +36,43 @@ python pipeline.py --db run/demo2.db ingest data/payments.csv
 | Corrections | 2 versions accepted |
 | Final reconciliation | firm-a: 13,000 cents; firm-b: 11,000 cents; both matched |
 | Repeat corrections | already_loaded; no new records |
+
+## dbt reporting layer
+Python validates incoming files and records accepted history in SQLite. `warehouse.py` copies that history and independent control totals into DuckDB in a single transaction. dbt then builds three SQL views:
+
+```mermaid
+flowchart LR
+    A[Validated SQLite history] --> B[Atomic DuckDB snapshot]
+    C[Independent control totals] --> B
+    B --> D[stg_payment_versions]
+    D --> E[current_payments]
+    E --> F[reconciliation]
+    B --> F
+```
+
+`stg_payment_versions` preserves accepted history. `current_payments` uses a window function to select the latest version per firm/payment. `reconciliation` uses a full outer join to retain firms missing from either side. Its statuses are `matched`, `mismatch`, `unmapped` (no control), and `missing_payments` (no accepted payments). Unlike the original Python report, dbt explicitly flags an absent firm even when its expected total is zero.
+
+Install the optional analytics dependencies in a virtual environment (PowerShell, from this repository):
+```powershell
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r requirements-dbt.txt
+.venv/Scripts/python.exe tests/verify_dbt.py
+```
+
+The integration check creates temporary databases, runs four real `dbt build` commands, and removes its temporary files afterward. The first and fourth builds intentionally fail **only** the reconciliation data test: the first detects the initial discrepancies; the fourth verifies missing firms and controls. The two corrected builds must pass. The script exits successfully only when all expected outcomes are confirmed. Existing ingestion tests still run separately with `python -m unittest discover -s tests -v`.
+
+To build persistent reporting views from the SQLite demo database after following the original ingestion commands:
+```powershell
+.venv/Scripts/python.exe warehouse.py --source run/ledger.db --destination run/warehouse.duckdb --controls data/expected.json
+$env:LEDGERCHECK_WAREHOUSE = Join-Path (Get-Location) 'run/warehouse.duckdb'
+$env:DBT_SEND_ANONYMOUS_USAGE_STATS = 'false'
+.venv/Scripts/dbt.exe build --project-dir dbt --profiles-dir dbt
+```
+On macOS/Linux use `.venv/bin/python` and `.venv/bin/dbt`, and set the warehouse with `export LEDGERCHECK_WAREHOUSE="$PWD/run/warehouse.duckdb"`.
+
+After each new ingestion, rerun the snapshot command before dbt. This is a full snapshot for small local datasets, not incremental replication. It does not copy rejection/audit tables, track snapshot freshness, or provide production orchestration. Keep the SQLite ledger for those original records. Controls must use integer cents within the signed 64-bit range; DuckDB aggregates payments using 128-bit integers. Concurrent writers to the warehouse are outside this prototype's scope.
+
+The dbt suite checks required values, payment-version integrity, current-payment grain, unique reporting firms, and reconciliation exceptions. The end-to-end check also compares corrected dbt results against Python and exercises old arrivals, repeated files, and invalid controls.
 
 ## How it works
 ```mermaid
@@ -77,13 +114,13 @@ SQLite is used to make the behavior reproducible without cloud costs. Cloud acce
 
 ## Roadmap
 1. Add invoice/payment allocation and record-level reconciliation with explicit reporting periods.
-2. Move transformation logic into dbt staging and reporting models; add uniqueness, relationship and custom reconciliation tests.
+2. Extend the implemented dbt layer with invoice/payment relationships and reporting-period tests.
 3. Add an API source with checkpoints, retry handling and simulated rate limits.
 4. Add scheduled runs, freshness checks and failure notifications.
 5. Deploy to one selected cloud/warehouse; document IAM, secrets, costs, performance and teardown.
 6. Add a concise architecture walkthrough and measured results.
 
-The initial scope demonstrates Python validation, SQL modeling, transactions, testing, backfills and troubleshooting. It does not establish professional production tenure in dbt or cloud platforms.
+The project demonstrates Python validation, SQL and dbt modeling, transactions, testing, backfills and troubleshooting. It does not establish professional production tenure in dbt or cloud platforms.
 
 ## Repository
 https://github.com/danielsegun97/ledgercheck

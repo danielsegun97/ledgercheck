@@ -1,0 +1,8 @@
+ledgercheck:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('LEDGERCHECK_WAREHOUSE') }}"
+      schema: main
+      threads: 1

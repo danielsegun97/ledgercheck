@@ -1,0 +1,4 @@
+# Tested Python 3.11 stack. The original SQLite pipeline remains dependency-free.
+dbt-core==1.10.15
+dbt-duckdb==1.9.6
+duckdb==1.4.1
